@@ -53,7 +53,6 @@ class StompClient(stomp.ConnectionListener):
         logging.info('Connecting to ' + host_and_port[0])
 
     def on_message(self, frame):
-        # logging.info(frame)
         try:
             bio = io.BytesIO()
             bio.write(str.encode('utf-16'))
@@ -67,7 +66,9 @@ class StompClient(stomp.ConnectionListener):
             # Check if record count reaches the limit
             if self.record_count >= self.records_per_file:
                 logger.info("Saving data ")
-                pd.DataFrame(self.raw_dataset).to_csv(self.file_path, index=False)
+                data_frames = [pd.json_normalize(item) for item in self.raw_dataset]
+                result = pd.concat(data_frames, ignore_index=True).reset_index()
+                result.to_csv(self.file_path, index=False)
                 logger.info(f"dataset saved at {self.file_path}")
                 self.exit_gracefully()
 
@@ -93,7 +94,7 @@ class MovementFeed(Feed):
         )
 
     def connect_and_subscribe(self):
-        logger.info("Connecting to realtime feed")
+        logger.info("Extracting realtime feed")
 
         connect_header = {
             'client-id': self.username + '-' + self.client_id
@@ -116,8 +117,6 @@ class MovementFeed(Feed):
             ack='auto',
             headers=subscribe_header
         )
-
-        logger.info("Connected to realtime feed")
 
     def fetch(self, config: FeedConfig):
         stomp_client = StompClient(config=config)

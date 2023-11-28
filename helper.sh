@@ -6,4 +6,3 @@ function setup() {
 function run() {
     export EMAIL='sureyasathiamoorthi@gmail.com' && export PASSWORD='#rrybU1RMcAS*mYr' && railfeed
 }
-
