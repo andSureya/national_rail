@@ -12,6 +12,7 @@ from os.path import join
 import stomp
 import xmltodict
 import pandas as pd
+from tqdm import tqdm
 
 # custom
 from network_rail.config.app_config import logger
@@ -23,7 +24,7 @@ class StompClient(stomp.ConnectionListener):
     def __init__(self, config: FeedConfig):
         self.record_count = 0
         self.file_counter = 1
-        self.records_per_file = 100
+        self.records_per_file = 10000
         self.config = config
         self.file_path = join(self.config.storage_path, "movement.csv")
         self.raw_dataset = []
@@ -65,11 +66,13 @@ class StompClient(stomp.ConnectionListener):
 
             # Check if record count reaches the limit
             if self.record_count >= self.records_per_file:
-                logger.info("Saving data ")
-                data_frames = [pd.json_normalize(item) for item in self.raw_dataset]
+                data_frames = [
+                    pd.json_normalize(item)
+                    for item in tqdm(self.raw_dataset, desc="Processing downloaded feed")
+
+                ]
                 result = pd.concat(data_frames, ignore_index=True).reset_index()
                 result.to_csv(self.file_path, index=False)
-                logger.info(f"dataset saved at {self.file_path}")
                 self.exit_gracefully()
 
         except Exception as e:
