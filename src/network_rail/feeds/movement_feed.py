@@ -22,9 +22,8 @@ from network_rail.repositories.feed_repository import Feed
 
 class StompClient(stomp.ConnectionListener):
     def __init__(self, config: FeedConfig):
-        self.record_count = 0
         self.file_counter = 1
-        self.records_per_file = 10000
+        self.records_per_file = 1000
         self.config = config
         self.file_path = join(self.config.storage_path, "movement.csv")
         self.raw_dataset = []
@@ -61,23 +60,11 @@ class StompClient(stomp.ConnectionListener):
             decompressed_data = gzip.decompress(frame.body)
             xml_dict = xmltodict.parse(decompressed_data)
             self.raw_dataset.append(xml_dict)
-
-            self.record_count += 1
-
-            # Check if record count reaches the limit
-            if self.record_count >= self.records_per_file:
-                data_frames = [
-                    pd.json_normalize(item)
-                    for item in tqdm(self.raw_dataset, desc="Processing downloaded feed")
-
-                ]
-                result = pd.concat(data_frames, ignore_index=True).reset_index()
-                result.to_csv(self.file_path, index=False)
-                self.exit_gracefully()
+            logger.debug(f"Current dataset length => {len(self.raw_dataset)}")
 
         except Exception as e:
             logging.error(str(e))
-            print(traceback.format_exc())
+            logger.error(traceback.format_exc())
 
 
 class MovementFeed(Feed):
@@ -126,8 +113,15 @@ class MovementFeed(Feed):
         self.connection.set_listener('', stomp_client)
         self.connect_and_subscribe()
 
-        while stomp_client.record_count < stomp_client.records_per_file:
+        while len(stomp_client.raw_dataset) < stomp_client.records_per_file:
             time.sleep(1)
 
+        data_frames = [
+            pd.json_normalize(item)
+            for item in tqdm(stomp_client.raw_dataset, desc="Processing downloaded feed")
+
+        ]
+        result = pd.concat(data_frames, ignore_index=True).reset_index()
+        result.to_csv(stomp_client.file_path, index=False)
         stomp_client.exit_gracefully()
         logger.info("Completed")
